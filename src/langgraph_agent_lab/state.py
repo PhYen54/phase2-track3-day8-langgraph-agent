@@ -39,10 +39,33 @@ class ApprovalDecision(BaseModel):
 
 
 class AgentState(TypedDict, total=False):
-    """LangGraph state.
+    """LangGraph state with clear append-only vs overwrite strategy.
 
-    TODO(student): decide which fields should be append-only and which should be overwritten.
-    The current annotations give a safe starting point for auditability.
+    APPEND-ONLY fields (use `add` reducer):
+    - messages: accumulate conversation history for audit trail
+    - tool_results: retain all tool calls for reproducibility and retry decisions
+    - errors: build error log across retries for debugging and dead-letter escalation
+    - events: append-only audit log of every node transition with metadata
+
+    OVERWRITE fields (no reducer - represents current state):
+    - thread_id: unique run identifier (constant, set at start)
+    - scenario_id: scenario reference (constant, set at start)
+    - query: normalized user query (immutable after intake normalization)
+    - route: current classified route (updated by classify node)
+    - risk_level: current risk assessment (updated by classify node)
+    - attempt: current retry attempt count (incremented by retry node)
+    - max_attempts: maximum retry limit (constant from scenario)
+    - final_answer: final response to user (computed by answer/clarify/dead_letter nodes)
+    - pending_question: clarification question if needed (set by clarify node)
+    - proposed_action: risky action proposal awaiting approval (set by risky_action node)
+    - approval: approval decision with reviewer metadata (set by approval node)
+    - evaluation_result: evaluation of latest tool result (set by evaluate node)
+
+    This design ensures:
+    1. Auditability: append-only lists preserve full execution history
+    2. Reproducibility: tool_results allow deterministic retry and replay
+    3. Clarity: overwrite fields show current state (route, attempt, etc.)
+    4. Efficiency: state stays lean; no redundant copies of transient values
     """
 
     thread_id: str
